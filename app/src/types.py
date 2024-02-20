@@ -19,25 +19,12 @@ class Page(ABC):
 
 
 @dataclass
-class InstagramVenue:
-    external_id: int
-    lat: float
-    lng: float
-    external_id_source: Optional[str] = None
-    name: Optional[str] = None
-    # this looks like distance from location (in miles)
-    address: Optional[str] = None
+class Article:
+    publish_date: str
+    title: str
+    url: str
+    articles_text: str
+    id: int
 
-
-@dataclass
-class InstagramResponse:
-    rank_token: str
-    request_id: str
-    venues: list[InstagramVenue]
-    status: str
-
-
-@dataclass
-class APIResponse:
-    status_code: HttpStatus
-    message: InstagramResponse | dict
+    def __getitem__(self, item):
+        return getattr(self, item)
