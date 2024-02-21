@@ -21,7 +21,7 @@ from ..constants import CSV_FILE, COLLECTION_NAME
 load_dotenv(override=True)
 
 
-REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
+REPLICATE_API_TOKEN = st.secrets["REPLICATE_API_TOKEN"]
 sentence_transformer_ef = SentenceTransformerEmbeddingFunction(
     model_name="all-MiniLM-L6-v2"
 )
