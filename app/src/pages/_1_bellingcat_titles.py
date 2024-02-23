@@ -16,14 +16,14 @@ import chromadb
 from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 
 from ..types import Page, Article
-from ..constants import CSV_FILE, COLLECTION_NAME
+from ..constants import CSV_FILE, COLLECTION_NAME, MISTRAL_URL, EMBEDDING_FUNCTION
 
 load_dotenv(override=True)
 
 
 REPLICATE_API_TOKEN = st.secrets["REPLICATE_API_TOKEN"]
 sentence_transformer_ef = SentenceTransformerEmbeddingFunction(
-    model_name="all-MiniLM-L6-v2"
+    model_name=EMBEDDING_FUNCTION
 )
 
 
@@ -34,16 +34,14 @@ class Bellingcat(Page):
     def __init__(self):
         # Initialize the chromadb directory, and client.
         self.chroma_client = chromadb.Client()
-        self.replicate_client = Client(
-            api_token=REPLICATE_API_TOKEN, embedding_function=sentence_transformer_ef
-        )
+        self.replicate_client = Client(api_token=REPLICATE_API_TOKEN)
 
     def write(self):
         st.title(self.__class__.__name__)
 
         st.write("## Download CSV")
         df = self.download_csv(CSV_FILE)
-        st.dataframe(df)
+        st.dataframe(df.head(2))
 
         st.write("## Convert to JSON")
         self.convert_to_json(df)
@@ -57,8 +55,10 @@ class Bellingcat(Page):
 
         prompt = st.chat_input("Enter prompt...")
         if prompt:
-            result = self.query_collection(prompt)
-            st.write(result)
+            relevant_artcles = self.query_collection(prompt)
+            if relevant_artcles:
+                llm_response = self.query_replicate(prompt, relevant_artcles)
+                st.write(llm_response)
 
     def download_csv(self, csv_file: str) -> pd.DataFrame:
         df = pd.read_csv(csv_file)
@@ -89,3 +89,37 @@ class Bellingcat(Page):
 
         if results:
             return "\n".join(results["documents"][0])
+
+    def generate_prompt(self, user_prompt: str, relevant_artcles: str) -> str:
+        # NOTE: The [INST] and [/INST] tags are required for mistral-7b-instruct to leverage instruction fine-tuning.
+        return f"""[INST]
+        You are an expert in all things Bellingcat. Your goal is to give me a summary of the top results. You will be given a USER_PROMPT, and a series of RELEVANT_ARTICLES.
+
+        USER_PROMPT: {user_prompt}
+
+        RELEVANT_ARTICLES: {relevant_artcles}
+
+        SUGGESTIONS:
+
+        [/INST]
+        """
+
+    def query_replicate(
+        self,
+        user_prompt: str,
+        relevant_artcles: str,
+        temperature: float = 0.75,
+        max_new_tokens: int = 2048,
+    ) -> str:
+        # Prompt the mistral-7b-instruct LLM
+        mistral_response = self.replicate_client.run(
+            MISTRAL_URL,
+            input={
+                "prompt": self.generate_prompt(user_prompt, relevant_artcles),
+                "temperature": temperature,
+                "max_new_tokens": max_new_tokens,
+            },
+        )
+
+        # Concatenate the response into a single string.
+        return "".join([str(s) for s in mistral_response])
