@@ -1,6 +1,8 @@
 # BellingChat
 An online dashboard to search Bellingcat articles for keywords and return answers in a contextual reponse using Meta's Llama2 LLM model.
 (ChatGPT customised for a newspaper if you will)
+[![Medium](https://img.shields.io/badge/medium-%2312100E.svg?&style=for-the-badge&logo=medium&logoColor=white&link=https://jack-harding.medium.com/0a77e8e37a9b)](https://jack-harding.medium.com/0a77e8e37a9b)
+
 
 ## How to contribute to this
 
