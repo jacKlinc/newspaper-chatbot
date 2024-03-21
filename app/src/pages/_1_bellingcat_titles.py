@@ -36,12 +36,22 @@ class Bellingcat(Page):
         self.replicate_client = Client(api_token=REPLICATE_API_TOKEN)
 
     def write(self):
-        st.title(self.__class__.__name__)
+        st.title(f"{self.__class__.__name__} Newspaper Chatbot")
         st.subheader("An open souce researcher's personal assistant")
         self.articles = download_json()
         self.collection = fill_chroma_collection(self.articles)
+        self.sidebar_elements()
+        self.chat_elements()
 
-        # Chatbot
+    def sidebar_elements(self):
+        self.temperature = st.sidebar.slider(
+            "temperature", min_value=0.0, max_value=1.0, step=0.1, value=0.75
+        )
+        self.no_of_articles = st.sidebar.slider(
+            "number of articles", min_value=5, max_value=20, step=1, value=10
+        )
+
+    def chat_elements(self):
         # Initialize chat history
         if "messages" not in st.session_state:
             st.session_state.messages = []
@@ -66,12 +76,12 @@ class Bellingcat(Page):
                 st.chat_message("").markdown(llm_response)
 
             # Add assistant response to chat history
-            st.session_state.messages.append(
-                {"role": "assistant", "content": f"Echo: {prompt}"}
-            )
+            st.session_state.messages.append({"role": "assistant", "content": prompt})
 
-    def query_collection(self, query: str, n_results: int = 10) -> str | None:
-        results = self.collection.query(query_texts=[query], n_results=n_results)
+    def query_collection(self, query: str) -> str | None:
+        results = self.collection.query(
+            query_texts=[query], n_results=self.no_of_articles
+        )
 
         if results:
             return "\n".join(results["documents"][0])
@@ -91,18 +101,14 @@ class Bellingcat(Page):
         """
 
     def query_replicate(
-        self,
-        user_prompt: str,
-        relevant_artcles: str,
-        temperature: float = 0.75,
-        max_new_tokens: int = 2048,
+        self, user_prompt: str, relevant_artcles: str, max_new_tokens: int = 2048
     ) -> str:
         # Prompt the mistral-7b-instruct LLM
         mistral_response = self.replicate_client.run(
             MISTRAL_URL,
             input={
                 "prompt": self.generate_prompt(user_prompt, relevant_artcles),
-                "temperature": temperature,
+                "temperature": self.temperature,
                 "max_new_tokens": max_new_tokens,
             },
         )
