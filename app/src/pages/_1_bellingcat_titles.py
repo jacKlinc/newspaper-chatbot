@@ -37,22 +37,38 @@ class Bellingcat(Page):
 
     def write(self):
         st.title(self.__class__.__name__)
-
-        st.write("## Download JSON")
+        st.subheader("An open souce researcher's personal assistant")
         self.articles = download_json()
-
-        st.write("## Convert to JSON")
-        st.dataframe(self.articles[0])
-
-        st.write("## Create Vector Database w ChromaDB")
         self.collection = fill_chroma_collection(self.articles)
 
-        prompt = st.chat_input("Enter prompt...")
-        if prompt:
+        # Chatbot
+        # Initialize chat history
+        if "messages" not in st.session_state:
+            st.session_state.messages = []
+
+        # Display chat messages from history on app rerun
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+        # React to user input
+        if prompt := st.chat_input("Enter prompt..."):
+            # Display user message in chat message container
+            st.chat_message("user").markdown(prompt)
+            # Add user message to chat history
+            st.session_state.messages.append({"role": "user", "content": prompt})
+
+            # find relevant articles
             relevant_artcles = self.query_collection(prompt)
             if relevant_artcles:
+                # query LLM
                 llm_response = self.query_replicate(prompt, relevant_artcles)
-                st.write(llm_response)
+                st.chat_message("").markdown(llm_response)
+
+            # Add assistant response to chat history
+            st.session_state.messages.append(
+                {"role": "assistant", "content": f"Echo: {prompt}"}
+            )
 
     def query_collection(self, query: str, n_results: int = 10) -> str | None:
         results = self.collection.query(query_texts=[query], n_results=n_results)
