@@ -103,18 +103,30 @@ class Bellingcat(Page):
     def query_replicate(
         self, user_prompt: str, relevant_artcles: str, max_new_tokens: int = 2048
     ) -> str:
-        # Prompt the mistral-7b-instruct LLM
-        mistral_response = self.replicate_client.run(
-            MISTRAL_URL,
-            input={
-                "prompt": self.generate_prompt(user_prompt, relevant_artcles),
-                "temperature": self.temperature,
-                "max_new_tokens": max_new_tokens,
-            },
-        )
+        try:
+            # Prompt the mistral-7b-instruct LLM
+            mistral_response = self.replicate_client.run(
+                MISTRAL_URL,
+                input={
+                    "prompt": self.generate_prompt(user_prompt, relevant_artcles),
+                    "temperature": self.temperature,
+                    "max_new_tokens": max_new_tokens,
+                },
+            )
 
-        # Concatenate the response into a single string.
-        return "".join([str(s) for s in mistral_response])
+            # Concatenate the response into a single string.
+            return "".join([str(s) for s in mistral_response])
+        except Exception as e:
+            if "You have reached the free time limit" in str(e):
+                return str(e)
+            return "Unknown error"
+
+
+def extract_params(batch: list[Article], key: str, str_convert: bool = False) -> list:
+    """Extracts article fields into lists. Converts to str"""
+    if str_convert:
+        return [str(article[key]) for article in batch]
+    return [article[key] for article in batch]
 
 
 @st.cache_data
@@ -126,16 +138,21 @@ def download_json():
 @st.cache_resource
 def fill_chroma_collection(articles: list[Article], batch_size: int = 250):
     collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME)
+
     for i in range(0, len(articles), batch_size):
         batch = articles[i : i + batch_size]
 
-        batch_titles = [story["title"] for story in batch]
+        articles_texts = extract_params(batch, "articles_text")
+        ids = extract_params(batch, "id", True)
 
         # Upsert all of the embeddings, ids, metadata, and title strings into Chromadb.
         collection.upsert(
-            ids=[str(story["id"]) for story in batch],
-            metadatas=[dict(time=story["publish_date"]) for story in batch],
-            documents=batch_titles,
-            embeddings=sentence_transformer_ef(batch_titles),
+            ids=ids,
+            metadatas=[
+                dict(time=story["publish_date"], title=story["title"])
+                for story in batch
+            ],
+            documents=articles_texts,
+            embeddings=sentence_transformer_ef(articles_texts),
         )
     return collection
